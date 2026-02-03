@@ -1,0 +1,33 @@
+# Node
+node_modules/
+
+# Vite
+/dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# macOS
+.DS_Store
+
+# Rust
+/src-tauri/target/
+
+# Tauri
+/src-tauri/.tauri/
+
+# IDE
+.vscode/
+.idea/
+
+# Cache
+.cache/
+
+# Env
+.env
+
+# OS
+Thumbs.db
