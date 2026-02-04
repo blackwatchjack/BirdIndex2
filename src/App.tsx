@@ -156,14 +156,6 @@ export default function App() {
             placeholder="Multiling IOC 15.1_d.xlsx"
           />
         </label>
-        <label>
-          缓存路径
-          <input
-            value={cachePath}
-            onChange={(event) => setCachePath(event.target.value)}
-            placeholder="cache.json"
-          />
-        </label>
         <div className="root-picker">
           <div className="root-header">
             <div>
