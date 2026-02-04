@@ -75,7 +75,7 @@ export default function App() {
     const selected = await open({
       directory: true,
       multiple: true,
-      title: "选择扫描根目录"
+      title: "选择根目录"
     });
     if (!selected) return;
     const next = Array.isArray(selected) ? selected : [selected];
