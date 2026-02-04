@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:app": "cargo tauri build && node scripts/copy-bundle.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

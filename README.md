@@ -1,6 +1,6 @@
 # BirdIndex2
 
-BirdIndex2 is a local-only virtual indexing system for bird photos. It builds a strict IOC taxonomic tree from the `Multiling IOC 15.1_d.xlsx` dataset and matches photos by filename, without moving or modifying any files.
+BirdIndex2 is a local-only virtual indexing system for bird photos. It builds a strict IOC taxonomic tree from the embedded `Multiling IOC 15.1_d.xlsx` dataset and matches photos by filename, without moving or modifying any files.
 
 ## Highlights
 - IOC-driven classification: `Order > Family > Genus > Species`
@@ -9,7 +9,7 @@ BirdIndex2 is a local-only virtual indexing system for bird photos. It builds a 
 - Offline by design
 
 ## Data Source
-- File: `Multiling IOC 15.1_d.xlsx`
+- File: `Multiling IOC 15.1_d.xlsx` (bundled with the app)
 - Sheet: `List`
 - Columns used: `Order`, `Family`, `IOC_15.1`, `Chinese`
 - Other language columns are ignored

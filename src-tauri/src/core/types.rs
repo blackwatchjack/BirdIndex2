@@ -58,8 +58,6 @@ pub struct ScanStats {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanRequest {
     pub roots: Vec<String>,
-    pub ioc_path: String,
-    pub cache_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
