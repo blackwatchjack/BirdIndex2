@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { appDataDir, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 
 interface PhotoItem {
@@ -49,12 +50,21 @@ interface ScanResponse {
 }
 
 export default function App() {
+  const [iocPath, setIocPath] = useState("Multiling IOC 15.1_d.xlsx");
+  const [cachePath, setCachePath] = useState("");
   const [roots, setRoots] = useState<string[]>([]);
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesNode | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    appDataDir()
+      .then((dir) => join(dir, "birdindex2", "cache.json"))
+      .then((path) => setCachePath(path))
+      .catch(() => setCachePath(""));
+  }, []);
 
   const rootsLabel = useMemo(() => {
     if (roots.length === 0) return "0 个目录";
@@ -86,9 +96,12 @@ export default function App() {
     setSelectedSpecies(null);
     setSelectedPhoto(null);
     try {
+      const effectiveCachePath = cachePath || "cache.json";
       const response = await invoke<ScanResponse>("scan", {
         request: {
-          roots
+          roots,
+          ioc_path: iocPath,
+          cache_path: effectiveCachePath
         }
       });
       setScanResult(response);
@@ -127,7 +140,7 @@ export default function App() {
           <button
             className="primary"
             onClick={handleScan}
-            disabled={isScanning || roots.length === 0}
+            disabled={isScanning || roots.length === 0 || !iocPath}
           >
             {isScanning ? "Scanning..." : "Scan"}
           </button>
@@ -135,7 +148,22 @@ export default function App() {
       </header>
 
       <section className="panel settings">
-        <div className="inline-note">IOC 数据已内置</div>
+        <label>
+          IOC 文件路径
+          <input
+            value={iocPath}
+            onChange={(event) => setIocPath(event.target.value)}
+            placeholder="Multiling IOC 15.1_d.xlsx"
+          />
+        </label>
+        <label>
+          缓存路径
+          <input
+            value={cachePath}
+            onChange={(event) => setCachePath(event.target.value)}
+            placeholder="cache.json"
+          />
+        </label>
         <div className="root-picker">
           <div className="root-header">
             <div>
