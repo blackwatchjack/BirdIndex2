@@ -21,6 +21,7 @@ fn open_file(path: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![scan, reveal, open_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

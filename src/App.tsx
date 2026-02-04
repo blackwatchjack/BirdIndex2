@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
+import { open } from "@tauri-apps/plugin-dialog";
 
 interface PhotoItem {
   path: string;
@@ -51,7 +52,7 @@ interface ScanResponse {
 export default function App() {
   const [iocPath, setIocPath] = useState("Multiling IOC 15.1_d.xlsx");
   const [cachePath, setCachePath] = useState("");
-  const [rootsText, setRootsText] = useState("");
+  const [roots, setRoots] = useState<string[]>([]);
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesNode | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null);
@@ -65,12 +66,29 @@ export default function App() {
       .catch(() => setCachePath(""));
   }, []);
 
-  const roots = useMemo(() => {
-    return rootsText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-  }, [rootsText]);
+  const rootsLabel = useMemo(() => {
+    if (roots.length === 0) return "尚未选择任何目录";
+    return `${roots.length} 个目录`;
+  }, [roots.length]);
+
+  const handlePickRoots = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: true,
+      title: "选择扫描根目录"
+    });
+    if (!selected) return;
+    const next = Array.isArray(selected) ? selected : [selected];
+    setRoots((prev) => Array.from(new Set([...prev, ...next])));
+  };
+
+  const handleRemoveRoot = (path: string) => {
+    setRoots((prev) => prev.filter((item) => item !== path));
+  };
+
+  const handleClearRoots = () => {
+    setRoots([]);
+  };
 
   const handleScan = async () => {
     setIsScanning(true);
@@ -146,15 +164,39 @@ export default function App() {
             placeholder="cache.json"
           />
         </label>
-        <label>
-          扫描根目录（每行一个）
-          <textarea
-            value={rootsText}
-            onChange={(event) => setRootsText(event.target.value)}
-            rows={3}
-            placeholder="D:\\Birds\\2023\nE:\\Backup\\Birds"
-          />
-        </label>
+        <div className="root-picker">
+          <div className="root-header">
+            <div>
+              <div className="root-title">扫描根目录</div>
+              <div className="root-subtitle">{rootsLabel}</div>
+            </div>
+            <div className="root-actions">
+              <button className="ghost" onClick={handlePickRoots}>
+                选择目录
+              </button>
+              <button className="ghost" onClick={handleClearRoots}>
+                清空
+              </button>
+            </div>
+          </div>
+          <div className="root-list">
+            {roots.length === 0 ? (
+              <div className="empty">尚未选择任何目录</div>
+            ) : (
+              roots.map((root) => (
+                <div key={root} className="root-item">
+                  <span>{root}</span>
+                  <button
+                    className="ghost small"
+                    onClick={() => handleRemoveRoot(root)}
+                  >
+                    移除
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
         {scanResult ? (
           <div className="stats">
             <span>扫描文件：{scanResult.stats.total_files}</span>
