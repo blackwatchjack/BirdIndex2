@@ -8,12 +8,23 @@ use tauri::path::BaseDirectory;
 use tauri::Manager;
 
 fn resolve_ioc_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let resource_path = app
-        .path()
-        .resolve("Multiling IOC 15.1_d.xlsx", BaseDirectory::Resource)
-        .map_err(|err| err.to_string())?;
-    if resource_path.exists() {
-        return Ok(resource_path);
+    let mut checked = Vec::new();
+    let resource_candidates = [
+        "Multiling IOC 15.1_d.xlsx",
+        "../Multiling IOC 15.1_d.xlsx",
+        "_up_/Multiling IOC 15.1_d.xlsx",
+    ];
+
+    for candidate in resource_candidates {
+        match app.path().resolve(candidate, BaseDirectory::Resource) {
+            Ok(path) => {
+                checked.push(path.display().to_string());
+                if path.exists() {
+                    return Ok(path);
+                }
+            }
+            Err(err) => checked.push(format!("resource:{candidate} (resolve error: {err})")),
+        }
     }
 
     let cwd = std::env::current_dir().map_err(|err| err.to_string())?;
@@ -22,12 +33,16 @@ fn resolve_ioc_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         cwd.join("..").join("Multiling IOC 15.1_d.xlsx"),
     ];
     for candidate in candidates {
+        checked.push(candidate.display().to_string());
         if candidate.exists() {
             return Ok(candidate);
         }
     }
 
-    Err("IOC resource not found. Ensure it is bundled with the app.".to_string())
+    Err(format!(
+        "IOC resource not found. Ensure it is bundled with the app. Checked: {}",
+        checked.join(", ")
+    ))
 }
 
 fn resolve_cache_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
