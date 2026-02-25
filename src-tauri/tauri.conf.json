@@ -10,6 +10,12 @@
     "frontendDist": "../build"
   },
   "app": {
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    },
     "windows": [
       {
         "title": "BirdIndex2",

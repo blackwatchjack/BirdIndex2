@@ -1,1 +1,1 @@
-{}
+{"main-window":{"identifier":"main-window","description":"Allow the main window to open a native directory picker.","local":true,"windows":["main"],"permissions":["core:path:default","dialog:allow-open"]}}

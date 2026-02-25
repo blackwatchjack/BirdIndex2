@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { invoke, convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -49,15 +49,29 @@ interface ScanResponse {
   total_species: number;
 }
 
+function toThumbnailSrc(path: string): string {
+  if (!path) return "";
+  try {
+    return isTauri() ? convertFileSrc(path) : path;
+  } catch {
+    return path;
+  }
+}
+
 export default function App() {
   const [iocPath, setIocPath] = useState("Multiling IOC 15.1_d.xlsx");
   const [cachePath, setCachePath] = useState("");
   const [roots, setRoots] = useState<string[]>([]);
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
+  const [treeQuery, setTreeQuery] = useState("");
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesNode | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null);
+  const [thumbnailErrorMap, setThumbnailErrorMap] = useState<
+    Record<string, boolean>
+  >({});
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const rootPickerInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     appDataDir()
@@ -66,20 +80,69 @@ export default function App() {
       .catch(() => setCachePath(""));
   }, []);
 
+  useEffect(() => {
+    const input = rootPickerInputRef.current;
+    if (!input) return;
+    input.setAttribute("webkitdirectory", "");
+    input.setAttribute("directory", "");
+  }, []);
+
+  useEffect(() => {
+    setThumbnailErrorMap({});
+  }, [selectedSpecies]);
+
   const rootsLabel = useMemo(() => {
     if (roots.length === 0) return "0 个目录";
     return `${roots.length} 个目录`;
   }, [roots.length]);
 
+  const handleBrowserRootInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+    if (files.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    const parsedRoots = new Set<string>();
+    for (const file of Array.from(files)) {
+      const relativePath = file.webkitRelativePath;
+      if (!relativePath) continue;
+      const [topLevel] = relativePath.split("/");
+      if (topLevel) parsedRoots.add(topLevel);
+    }
+
+    if (parsedRoots.size === 0) {
+      setError("未能从浏览器选择结果中解析目录，请在 Tauri 桌面应用中运行。");
+      event.target.value = "";
+      return;
+    }
+
+    setError(null);
+    setRoots((prev) => Array.from(new Set([...prev, ...Array.from(parsedRoots)])));
+    event.target.value = "";
+  };
+
   const handlePickRoots = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: true,
-      title: "选择根目录"
-    });
-    if (!selected) return;
-    const next = Array.isArray(selected) ? selected : [selected];
-    setRoots((prev) => Array.from(new Set([...prev, ...next])));
+    setError(null);
+
+    if (!isTauri()) {
+      rootPickerInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: true,
+        title: "选择根目录"
+      });
+      if (!selected) return;
+      const next = Array.isArray(selected) ? selected : [selected];
+      setRoots((prev) => Array.from(new Set([...prev, ...next])));
+    } catch (err) {
+      setError(`打开目录选择失败：${String(err)}`);
+    }
   };
 
   const handleRemoveRoot = (path: string) => {
@@ -91,6 +154,11 @@ export default function App() {
   };
 
   const handleScan = async () => {
+    if (!isTauri()) {
+      setError("当前为浏览器模式，无法执行本地扫描，请在 Tauri 桌面应用中运行。");
+      return;
+    }
+
     setIsScanning(true);
     setError(null);
     setSelectedSpecies(null);
@@ -127,6 +195,13 @@ export default function App() {
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const handleThumbnailError = (path: string) => {
+    setThumbnailErrorMap((prev) => {
+      if (prev[path]) return prev;
+      return { ...prev, [path]: true };
+    });
   };
 
   return (
@@ -170,6 +245,13 @@ export default function App() {
                 清空
               </button>
             </div>
+            <input
+              ref={rootPickerInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={handleBrowserRootInputChange}
+            />
           </div>
           <div className="root-list">
             {roots.length === 0 ? (
@@ -206,7 +288,22 @@ export default function App() {
         <section className="panel tree">
           <h2>分类树</h2>
           {scanResult ? (
-            <TreeView tree={scanResult.tree} onSelect={setSelectedSpecies} />
+            <>
+              <div className="tree-search">
+                <input
+                  type="search"
+                  value={treeQuery}
+                  onChange={(event) => setTreeQuery(event.target.value)}
+                  placeholder="搜索物种（中文或拉丁名）"
+                  aria-label="搜索物种（中文或拉丁名）"
+                />
+              </div>
+              <TreeView
+                tree={scanResult.tree}
+                query={treeQuery}
+                onSelect={setSelectedSpecies}
+              />
+            </>
           ) : (
             <div className="empty">尚未生成分类树</div>
           )}
@@ -227,7 +324,21 @@ export default function App() {
                   onClick={() => setSelectedPhoto(photo)}
                   onDoubleClick={() => handleOpen(photo.path)}
                 >
-                  <img src={convertFileSrc(photo.path)} alt={photo.file_name} />
+                  {thumbnailErrorMap[photo.path] ? (
+                    <div
+                      className="photo-fallback"
+                      role="img"
+                      aria-label={`无法预览：${photo.file_name}`}
+                    >
+                      无法预览
+                    </div>
+                  ) : (
+                    <img
+                      src={toThumbnailSrc(photo.path)}
+                      alt={photo.file_name}
+                      onError={() => handleThumbnailError(photo.path)}
+                    />
+                  )}
                   <span>{photo.file_name}</span>
                 </button>
               ))}
@@ -269,21 +380,62 @@ export default function App() {
 
 function TreeView({
   tree,
+  query,
   onSelect
 }: {
   tree: TaxonTree;
+  query: string;
   onSelect: (species: SpeciesNode) => void;
 }) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const hasQuery = normalizedQuery.length > 0;
+
+  const filteredOrders = useMemo(() => {
+    if (!normalizedQuery) return tree.orders;
+
+    return tree.orders
+      .map((order) => {
+        const families = order.families
+          .map((family) => {
+            const genera = family.genera
+              .map((genus) => {
+                const species = genus.species.filter((item) => {
+                  return (
+                    item.chinese.toLowerCase().includes(normalizedQuery) ||
+                    item.latin.toLowerCase().includes(normalizedQuery)
+                  );
+                });
+
+                if (species.length === 0) return null;
+                return { ...genus, species };
+              })
+              .filter((genus): genus is GenusNode => genus !== null);
+
+            if (genera.length === 0) return null;
+            return { ...family, genera };
+          })
+          .filter((family): family is FamilyNode => family !== null);
+
+        if (families.length === 0) return null;
+        return { ...order, families };
+      })
+      .filter((order): order is OrderNode => order !== null);
+  }, [tree, normalizedQuery]);
+
+  if (hasQuery && filteredOrders.length === 0) {
+    return <div className="empty">未找到匹配物种</div>;
+  }
+
   return (
     <div className="tree-root">
-      {tree.orders.map((order) => (
+      {filteredOrders.map((order) => (
         <details key={order.name} open>
           <summary>{order.name}</summary>
           {order.families.map((family) => (
-            <details key={family.name} className="level">
+            <details key={family.name} className="level" open={hasQuery || undefined}>
               <summary>{family.name}</summary>
               {family.genera.map((genus) => (
-                <details key={genus.name} className="level">
+                <details key={genus.name} className="level" open={hasQuery || undefined}>
                   <summary>{genus.name}</summary>
                   <div className="species-list">
                     {genus.species.map((species) => (
