@@ -6,6 +6,7 @@ BirdIndex2 is a local-only virtual indexing system for bird photos. It builds a 
 - IOC-driven classification: `Order > Family > Genus > Species`
 - Read-only indexing: no move/copy/rename/delete
 - Fast name-based matching for large collections
+- Styled Excel species checklist export with a scan summary and one row per matched species
 - Offline by design
 
 ## Data Source
@@ -35,6 +36,7 @@ BirdIndex2 is a local-only virtual indexing system for bird photos. It builds a 
 2. System parses `List` and scans filenames.
 3. Taxonomic tree appears with only matched nodes.
 4. Select a photo and use "Locate" to reveal it in Finder/Explorer.
+5. After a scan, use "导出物种清单" to save an `.xlsx` workbook. The checklist contains one row per matched species with order, family, genus, Chinese and Latin names, and matched photo count.
 
 ## Non-Functional Requirements
 - Target: 100,000 photos indexed within ~1 minute (filename-only scan)

@@ -52,6 +52,7 @@ pub struct TaxonTree {
 pub struct ScanStats {
     pub total_files: usize,
     pub matched_files: usize,
+    pub matched_species: usize,
     pub unmatched_files: usize,
 }
 
@@ -65,6 +66,21 @@ pub struct ScanResponse {
     pub tree: TaxonTree,
     pub stats: ScanStats,
     pub total_species: usize,
+    pub roots: Vec<String>,
+    pub ioc_source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportRequest {
+    pub destination: String,
+    pub exported_at: String,
+    pub scan: ScanResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportResponse {
+    pub path: String,
+    pub species_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -88,5 +104,4 @@ pub struct CacheFile {
     pub entries: Vec<CacheEntry>,
 }
 
-impl CacheFile {
-}
+impl CacheFile {}

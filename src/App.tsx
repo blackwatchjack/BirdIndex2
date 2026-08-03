@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { invoke, convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { appDataDir, join } from "@tauri-apps/api/path";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+
+const IOC_FILE_NAME = "Multiling IOC 15.1_d.xlsx";
 
 interface PhotoItem {
   path: string;
@@ -40,6 +41,7 @@ interface TaxonTree {
 interface ScanStats {
   total_files: number;
   matched_files: number;
+  matched_species: number;
   unmatched_files: number;
 }
 
@@ -47,6 +49,32 @@ interface ScanResponse {
   tree: TaxonTree;
   stats: ScanStats;
   total_species: number;
+  roots: string[];
+  ioc_source: string;
+}
+
+interface ExportResponse {
+  path: string;
+  species_count: number;
+}
+
+function exportFileName(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `BirdIndex2-物种清单-${year}${month}${day}-${hour}${minute}.xlsx`;
+}
+
+function exportTimestamp(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 }
 
 function toThumbnailSrc(path: string): string {
@@ -59,8 +87,6 @@ function toThumbnailSrc(path: string): string {
 }
 
 export default function App() {
-  const [iocPath, setIocPath] = useState("Multiling IOC 15.1_d.xlsx");
-  const [cachePath, setCachePath] = useState("");
   const [roots, setRoots] = useState<string[]>([]);
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [treeQuery, setTreeQuery] = useState("");
@@ -70,15 +96,13 @@ export default function App() {
     Record<string, boolean>
   >({});
   const [isScanning, setIsScanning] = useState(false);
+  const [isChoosingExportPath, setIsChoosingExportPath] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rootPickerInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    appDataDir()
-      .then((dir) => join(dir, "birdindex2", "cache.json"))
-      .then((path) => setCachePath(path))
-      .catch(() => setCachePath(""));
-  }, []);
+  const exportBusyRef = useRef(false);
+  const isExportBusy = isChoosingExportPath || isExporting;
 
   useEffect(() => {
     const input = rootPickerInputRef.current;
@@ -96,7 +120,20 @@ export default function App() {
     return `${roots.length} 个目录`;
   }, [roots.length]);
 
+  const invalidateScanResult = () => {
+    setScanResult(null);
+    setTreeQuery("");
+    setSelectedSpecies(null);
+    setSelectedPhoto(null);
+    setExportMessage(null);
+    setError(null);
+  };
+
   const handleBrowserRootInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (isScanning || exportBusyRef.current) {
+      event.target.value = "";
+      return;
+    }
     const files = event.target.files;
     if (!files) return;
     if (files.length === 0) {
@@ -119,11 +156,13 @@ export default function App() {
     }
 
     setError(null);
+    invalidateScanResult();
     setRoots((prev) => Array.from(new Set([...prev, ...Array.from(parsedRoots)])));
     event.target.value = "";
   };
 
   const handlePickRoots = async () => {
+    if (isScanning || exportBusyRef.current) return;
     setError(null);
 
     if (!isTauri()) {
@@ -139,6 +178,7 @@ export default function App() {
       });
       if (!selected) return;
       const next = Array.isArray(selected) ? selected : [selected];
+      invalidateScanResult();
       setRoots((prev) => Array.from(new Set([...prev, ...next])));
     } catch (err) {
       setError(`打开目录选择失败：${String(err)}`);
@@ -146,14 +186,19 @@ export default function App() {
   };
 
   const handleRemoveRoot = (path: string) => {
+    if (isScanning || exportBusyRef.current) return;
+    invalidateScanResult();
     setRoots((prev) => prev.filter((item) => item !== path));
   };
 
   const handleClearRoots = () => {
+    if (isScanning || exportBusyRef.current || roots.length === 0) return;
+    invalidateScanResult();
     setRoots([]);
   };
 
   const handleScan = async () => {
+    if (isScanning || exportBusyRef.current || roots.length === 0) return;
     if (!isTauri()) {
       setError("当前为浏览器模式，无法执行本地扫描，请在 Tauri 桌面应用中运行。");
       return;
@@ -161,15 +206,15 @@ export default function App() {
 
     setIsScanning(true);
     setError(null);
+    setExportMessage(null);
+    setScanResult(null);
+    setTreeQuery("");
     setSelectedSpecies(null);
     setSelectedPhoto(null);
     try {
-      const effectiveCachePath = cachePath || "cache.json";
       const response = await invoke<ScanResponse>("scan", {
         request: {
-          roots,
-          ioc_path: iocPath,
-          cache_path: effectiveCachePath
+          roots
         }
       });
       setScanResult(response);
@@ -177,6 +222,46 @@ export default function App() {
       setError(String(err));
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!scanResult || exportBusyRef.current) return;
+    if (!isTauri()) {
+      setError("当前为浏览器模式，无法导出本地文件，请在 Tauri 桌面应用中运行。");
+      return;
+    }
+
+    exportBusyRef.current = true;
+    setIsChoosingExportPath(true);
+    setError(null);
+    setExportMessage(null);
+    try {
+      const destination = await save({
+        title: "导出物种清单",
+        defaultPath: exportFileName(),
+        filters: [{ name: "Excel 工作簿", extensions: ["xlsx"] }]
+      });
+      setIsChoosingExportPath(false);
+      if (!destination) return;
+
+      setIsExporting(true);
+      const response = await invoke<ExportResponse>("export_manifest", {
+        request: {
+          destination,
+          exported_at: exportTimestamp(),
+          scan: scanResult
+        }
+      });
+      setExportMessage(
+        `已导出 ${response.species_count} 个物种：${response.path}`
+      );
+    } catch (err) {
+      setError(`导出失败：${String(err)}`);
+    } finally {
+      exportBusyRef.current = false;
+      setIsChoosingExportPath(false);
+      setIsExporting(false);
     }
   };
 
@@ -215,7 +300,7 @@ export default function App() {
           <button
             className="primary"
             onClick={handleScan}
-            disabled={isScanning || roots.length === 0 || !iocPath}
+            disabled={isScanning || isExportBusy || roots.length === 0}
           >
             {isScanning ? "Scanning..." : "Scan"}
           </button>
@@ -226,9 +311,10 @@ export default function App() {
         <label>
           IOC 文件路径
           <input
-            value={iocPath}
-            onChange={(event) => setIocPath(event.target.value)}
-            placeholder="Multiling IOC 15.1_d.xlsx"
+            value={IOC_FILE_NAME}
+            readOnly
+            aria-readonly="true"
+            title="桌面端使用随应用内置的 IOC 文件"
           />
         </label>
         <div className="root-picker">
@@ -238,10 +324,18 @@ export default function App() {
               <div className="root-subtitle">{rootsLabel}</div>
             </div>
             <div className="root-actions">
-              <button className="ghost" onClick={handlePickRoots}>
+              <button
+                className="ghost"
+                onClick={handlePickRoots}
+                disabled={isScanning || isExportBusy}
+              >
                 选择目录
               </button>
-              <button className="ghost" onClick={handleClearRoots}>
+              <button
+                className="ghost"
+                onClick={handleClearRoots}
+                disabled={isScanning || isExportBusy || roots.length === 0}
+              >
                 清空
               </button>
             </div>
@@ -263,6 +357,7 @@ export default function App() {
                   <button
                     className="ghost small"
                     onClick={() => handleRemoveRoot(root)}
+                    disabled={isScanning || isExportBusy}
                   >
                     移除
                   </button>
@@ -271,17 +366,33 @@ export default function App() {
             )}
           </div>
         </div>
-        {scanResult ? (
-          <div className="stats">
-            <span>扫描文件：{scanResult.stats.total_files}</span>
-            <span>命中：{scanResult.stats.matched_files}</span>
-            <span>未命中：{scanResult.stats.unmatched_files}</span>
-            <span>IOC 物种数：{scanResult.total_species}</span>
-          </div>
-        ) : (
-          <div className="stats">等待扫描</div>
-        )}
-        {error ? <div className="error">{error}</div> : null}
+        <div className="scan-summary">
+          {scanResult ? (
+            <div className="stats">
+              <span>扫描文件：{scanResult.stats.total_files}</span>
+              <span>命中：{scanResult.stats.matched_files}</span>
+              <span>命中物种：{scanResult.stats.matched_species}</span>
+              <span>未命中：{scanResult.stats.unmatched_files}</span>
+              <span>IOC 物种数：{scanResult.total_species}</span>
+            </div>
+          ) : (
+            <div className="stats">等待扫描</div>
+          )}
+          <button
+            className="ghost export-button"
+            onClick={handleExport}
+            disabled={!scanResult || isScanning || isExportBusy}
+            title={!scanResult ? "请先完成扫描" : "导出当前扫描中的全部物种"}
+          >
+            {isExporting ? "正在导出…" : "导出物种清单"}
+          </button>
+        </div>
+        <div className="feedback" aria-live="polite">
+          {error ? <div className="error">{error}</div> : null}
+          {exportMessage ? (
+            <div className="success">{exportMessage}</div>
+          ) : null}
+        </div>
       </section>
 
       <main className="main-grid">
