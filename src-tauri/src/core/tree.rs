@@ -1,35 +1,31 @@
 use crate::core::types::{
-    FamilyNode, GenusNode, IocEntry, MatchedPhoto, OrderNode, PhotoItem, SpeciesNode, TaxonTree,
+    FamilyNode, GenusNode, IocEntry, MatchedMedia, MediaItem, OrderNode, SpeciesNode, TaxonTree,
 };
 use std::collections::HashMap;
 
-pub fn build_tree(entries: &[IocEntry], matches: &[MatchedPhoto]) -> TaxonTree {
+pub fn build_tree(entries: &[IocEntry], matches: &[MatchedMedia]) -> TaxonTree {
     let mut orders: HashMap<String, OrderAgg> = HashMap::new();
 
     for matched in matches {
         let entry = &entries[matched.species_idx];
         let genus = genus_name(&entry.latin);
 
-        let order = orders
-            .entry(entry.order.clone())
-            .or_insert_with(OrderAgg::default);
-        let family = order
-            .families
-            .entry(entry.family.clone())
-            .or_insert_with(FamilyAgg::default);
-        let genus_node = family.genera.entry(genus).or_insert_with(GenusAgg::default);
+        let order = orders.entry(entry.order.clone()).or_default();
+        let family = order.families.entry(entry.family.clone()).or_default();
+        let genus_node = family.genera.entry(genus).or_default();
         let species = genus_node
             .species
             .entry(entry.latin.clone())
             .or_insert_with(|| SpeciesAgg {
                 latin: entry.latin.clone(),
                 chinese: entry.chinese.clone(),
-                photos: Vec::new(),
+                media_items: Vec::new(),
             });
 
-        species.photos.push(PhotoItem {
+        species.media_items.push(MediaItem {
             path: matched.path.clone(),
             file_name: matched.file_name.clone(),
+            media_type: matched.media_type,
         });
     }
 
@@ -65,10 +61,10 @@ impl OrderAgg {
             .map(|(name, agg)| agg.into_node(name))
             .collect();
         families.sort_by(|a, b| a.name.cmp(&b.name));
-        let count = families.iter().map(|f| f.count).sum();
+        let media_count = families.iter().map(|family| family.media_count).sum();
         OrderNode {
             name,
-            count,
+            media_count,
             families,
         }
     }
@@ -87,10 +83,10 @@ impl FamilyAgg {
             .map(|(name, agg)| agg.into_node(name))
             .collect();
         genera.sort_by(|a, b| a.name.cmp(&b.name));
-        let count = genera.iter().map(|g| g.count).sum();
+        let media_count = genera.iter().map(|genus| genus.media_count).sum();
         FamilyNode {
             name,
-            count,
+            media_count,
             genera,
         }
     }
@@ -105,14 +101,14 @@ impl GenusAgg {
     fn into_node(self, name: String) -> GenusNode {
         let mut species: Vec<SpeciesNode> = self
             .species
-            .into_iter()
-            .map(|(_, agg)| agg.into_node())
+            .into_values()
+            .map(|agg| agg.into_node())
             .collect();
         species.sort_by(|a, b| a.latin.cmp(&b.latin));
-        let count = species.iter().map(|s| s.count).sum();
+        let media_count = species.iter().map(|species| species.media_count).sum();
         GenusNode {
             name,
-            count,
+            media_count,
             species,
         }
     }
@@ -121,18 +117,68 @@ impl GenusAgg {
 struct SpeciesAgg {
     latin: String,
     chinese: String,
-    photos: Vec<PhotoItem>,
+    media_items: Vec<MediaItem>,
 }
 
 impl SpeciesAgg {
     fn into_node(mut self) -> SpeciesNode {
-        self.photos.sort_by(|a, b| a.file_name.cmp(&b.file_name));
-        let count = self.photos.len();
+        self.media_items.sort_by(|left, right| {
+            left.file_name
+                .cmp(&right.file_name)
+                .then_with(|| left.path.cmp(&right.path))
+        });
+        let media_count = self.media_items.len();
         SpeciesNode {
             latin: self.latin,
             chinese: self.chinese,
-            count,
-            photos: self.photos,
+            media_count,
+            media_items: self.media_items,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::MediaType;
+
+    #[test]
+    fn aggregates_images_and_videos_into_media_counts() {
+        let entries = vec![IocEntry {
+            order: "PASSERIFORMES".into(),
+            family: "Pycnonotidae".into(),
+            latin: "Pycnonotus sinensis".into(),
+            chinese: "白头鹎".into(),
+        }];
+        let matches = vec![
+            MatchedMedia {
+                path: "/media/白头鹎.jpg".into(),
+                file_name: "白头鹎.jpg".into(),
+                media_type: MediaType::Image,
+                species_idx: 0,
+            },
+            MatchedMedia {
+                path: "/media/白头鹎.mp4".into(),
+                file_name: "白头鹎.mp4".into(),
+                media_type: MediaType::Video,
+                species_idx: 0,
+            },
+        ];
+
+        let tree = build_tree(&entries, &matches);
+        let order = &tree.orders[0];
+        let family = &order.families[0];
+        let genus = &family.genera[0];
+        let species = &genus.species[0];
+
+        assert_eq!(order.media_count, 2);
+        assert_eq!(family.media_count, 2);
+        assert_eq!(genus.media_count, 2);
+        assert_eq!(species.media_count, 2);
+        assert_eq!(species.media_items.len(), 2);
+        assert!(species
+            .media_items
+            .iter()
+            .any(|media| media.media_type == MediaType::Video));
     }
 }

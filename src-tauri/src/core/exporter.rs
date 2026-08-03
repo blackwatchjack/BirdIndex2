@@ -1,4 +1,4 @@
-use crate::core::types::{ExportRequest, ExportResponse};
+use crate::core::types::{ExportRequest, ExportResponse, MediaType};
 use anyhow::{anyhow, Context, Result};
 use std::fs::File;
 use std::io::Write;
@@ -173,7 +173,7 @@ fn write_summary_sheet(
     } else {
         request.scan.roots.clone()
     };
-    let note_row = 11 + roots.len();
+    let note_row = 15 + roots.len();
     let last_row = note_row;
 
     write!(
@@ -186,39 +186,57 @@ fn write_summary_sheet(
     write!(zip, "</row>")?;
 
     write!(zip, r#"<row r="3" ht="24" customHeight="1">"#)?;
-    write_inline_cell(zip, "A3", "扫描文件", 3)?;
-    write_number_cell(zip, "B3", request.scan.stats.total_files, 4)?;
-    write_inline_cell(zip, "D3", "命中文件", 3)?;
-    write_number_cell(zip, "E3", request.scan.stats.matched_files, 4)?;
-    write_inline_cell(zip, "G3", "命中物种", 3)?;
-    write_number_cell(zip, "H3", request.scan.stats.matched_species, 4)?;
+    write_inline_cell(zip, "A3", "扫描媒体", 3)?;
+    write_number_cell(zip, "B3", request.scan.stats.total_media, 4)?;
+    write_inline_cell(zip, "D3", "扫描图片", 3)?;
+    write_number_cell(zip, "E3", request.scan.stats.total_images, 4)?;
+    write_inline_cell(zip, "G3", "扫描视频", 3)?;
+    write_number_cell(zip, "H3", request.scan.stats.total_videos, 4)?;
     write!(zip, "</row>")?;
 
     write!(zip, r#"<row r="5" ht="24" customHeight="1">"#)?;
-    write_inline_cell(zip, "A5", "未命中文件", 3)?;
-    write_number_cell(zip, "B5", request.scan.stats.unmatched_files, 4)?;
-    write_inline_cell(zip, "D5", "IOC 物种数", 3)?;
-    write_number_cell(zip, "E5", request.scan.total_species, 4)?;
-    write_inline_cell(zip, "G5", "扫描目录", 3)?;
-    write_number_cell(zip, "H5", request.scan.roots.len(), 4)?;
+    write_inline_cell(zip, "A5", "命中媒体", 3)?;
+    write_number_cell(zip, "B5", request.scan.stats.matched_media, 4)?;
+    write_inline_cell(zip, "D5", "命中图片", 3)?;
+    write_number_cell(zip, "E5", request.scan.stats.matched_images, 4)?;
+    write_inline_cell(zip, "G5", "命中视频", 3)?;
+    write_number_cell(zip, "H5", request.scan.stats.matched_videos, 4)?;
     write!(zip, "</row>")?;
 
     write!(zip, r#"<row r="7" ht="24" customHeight="1">"#)?;
-    write_inline_cell(zip, "A7", "导出时间", 3)?;
-    write_inline_cell(zip, "B7", &request.exported_at, 6)?;
+    write_inline_cell(zip, "A7", "未命中媒体", 3)?;
+    write_number_cell(zip, "B7", request.scan.stats.unmatched_media, 4)?;
+    write_inline_cell(zip, "D7", "未命中图片", 3)?;
+    write_number_cell(zip, "E7", request.scan.stats.unmatched_images, 4)?;
+    write_inline_cell(zip, "G7", "未命中视频", 3)?;
+    write_number_cell(zip, "H7", request.scan.stats.unmatched_videos, 4)?;
     write!(zip, "</row>")?;
 
-    write!(zip, r#"<row r="8" ht="24" customHeight="1">"#)?;
-    write_inline_cell(zip, "A8", "IOC 数据源", 3)?;
-    write_inline_cell(zip, "B8", &request.scan.ioc_source, 6)?;
+    write!(zip, r#"<row r="9" ht="24" customHeight="1">"#)?;
+    write_inline_cell(zip, "A9", "命中物种", 3)?;
+    write_number_cell(zip, "B9", request.scan.stats.matched_species, 4)?;
+    write_inline_cell(zip, "D9", "IOC 物种数", 3)?;
+    write_number_cell(zip, "E9", request.scan.total_species, 4)?;
+    write_inline_cell(zip, "G9", "扫描目录", 3)?;
+    write_number_cell(zip, "H9", request.scan.roots.len(), 4)?;
     write!(zip, "</row>")?;
 
-    write!(zip, r#"<row r="10" ht="24" customHeight="1">"#)?;
-    write_inline_cell(zip, "A10", "扫描目录", 2)?;
+    write!(zip, r#"<row r="11" ht="24" customHeight="1">"#)?;
+    write_inline_cell(zip, "A11", "导出时间", 3)?;
+    write_inline_cell(zip, "B11", &request.exported_at, 6)?;
+    write!(zip, "</row>")?;
+
+    write!(zip, r#"<row r="12" ht="24" customHeight="1">"#)?;
+    write_inline_cell(zip, "A12", "IOC 数据源", 3)?;
+    write_inline_cell(zip, "B12", &request.scan.ioc_source, 6)?;
+    write!(zip, "</row>")?;
+
+    write!(zip, r#"<row r="14" ht="24" customHeight="1">"#)?;
+    write_inline_cell(zip, "A14", "扫描目录", 2)?;
     write!(zip, "</row>")?;
 
     for (index, root) in roots.iter().enumerate() {
-        let row = 11 + index;
+        let row = 15 + index;
         write!(zip, r#"<row r="{row}" ht="22" customHeight="1">"#)?;
         write_inline_cell(zip, &format!("A{row}"), root, 6)?;
         write!(zip, "</row>")?;
@@ -228,7 +246,7 @@ fn write_summary_sheet(
     write_inline_cell(
         zip,
         &format!("A{note_row}"),
-        "清单基于本次扫描快照生成；原始照片未被修改。",
+        "清单基于本次扫描快照生成；原始媒体未被修改。",
         8,
     )?;
     write!(zip, "</row></sheetData>")?;
@@ -236,10 +254,10 @@ fn write_summary_sheet(
     let merge_count = roots.len() + 5;
     write!(
         zip,
-        r#"<mergeCells count="{merge_count}"><mergeCell ref="A1:H1"/><mergeCell ref="B7:H7"/><mergeCell ref="B8:H8"/><mergeCell ref="A10:H10"/>"#
+        r#"<mergeCells count="{merge_count}"><mergeCell ref="A1:H1"/><mergeCell ref="B11:H11"/><mergeCell ref="B12:H12"/><mergeCell ref="A14:H14"/>"#
     )?;
     for index in 0..roots.len() {
-        let row = 11 + index;
+        let row = 15 + index;
         write!(zip, r#"<mergeCell ref="A{row}:H{row}"/>"#)?;
     }
     write!(
@@ -265,12 +283,22 @@ fn write_species_sheet(
     };
     write!(
         zip,
-        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:G{last_row}"/><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="9" customWidth="1"/><col min="2" max="4" width="22" customWidth="1"/><col min="5" max="5" width="20" customWidth="1"/><col min="6" max="6" width="30" customWidth="1"/><col min="7" max="7" width="12" customWidth="1"/></cols><sheetData><row r="1" ht="26" customHeight="1">"#
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:I{last_row}"/><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20"/><cols><col min="1" max="1" width="9" customWidth="1"/><col min="2" max="4" width="22" customWidth="1"/><col min="5" max="5" width="20" customWidth="1"/><col min="6" max="6" width="30" customWidth="1"/><col min="7" max="9" width="12" customWidth="1"/></cols><sheetData><row r="1" ht="26" customHeight="1">"#
     )?;
 
-    for (index, header) in ["序号", "目", "科", "属", "中文名", "拉丁名", "照片数"]
-        .iter()
-        .enumerate()
+    for (index, header) in [
+        "序号",
+        "目",
+        "科",
+        "属",
+        "中文名",
+        "拉丁名",
+        "图片数",
+        "视频数",
+        "媒体总数",
+    ]
+    .iter()
+    .enumerate()
     {
         write_inline_cell(zip, &format!("{}1", column_name(index)), header, 5)?;
     }
@@ -297,10 +325,23 @@ fn write_species_sheet(
                         write_inline_cell(zip, &format!("D{row}"), &genus.name, text_style)?;
                         write_inline_cell(zip, &format!("E{row}"), &species.chinese, text_style)?;
                         write_inline_cell(zip, &format!("F{row}"), &species.latin, text_style)?;
+                        let image_count = species
+                            .media_items
+                            .iter()
+                            .filter(|media| media.media_type == MediaType::Image)
+                            .count();
+                        let video_count = species
+                            .media_items
+                            .iter()
+                            .filter(|media| media.media_type == MediaType::Video)
+                            .count();
+                        debug_assert_eq!(species.media_count, image_count + video_count);
+                        write_number_cell(zip, &format!("G{row}"), image_count, number_style)?;
+                        write_number_cell(zip, &format!("H{row}"), video_count, number_style)?;
                         write_number_cell(
                             zip,
-                            &format!("G{row}"),
-                            species.photos.len(),
+                            &format!("I{row}"),
+                            species.media_count,
                             number_style,
                         )?;
                         write!(zip, "</row>")?;
@@ -314,10 +355,10 @@ fn write_species_sheet(
     if species_count == 0 {
         write!(
             zip,
-            r#"<mergeCells count="1"><mergeCell ref="A2:G2"/></mergeCells><autoFilter ref="A1:G1"/>"#
+            r#"<mergeCells count="1"><mergeCell ref="A2:I2"/></mergeCells><autoFilter ref="A1:I1"/>"#
         )?;
     } else {
-        write!(zip, r#"<autoFilter ref="A1:G{last_row}"/>"#)?;
+        write!(zip, r#"<autoFilter ref="A1:I{last_row}"/>"#)?;
     }
     write!(
         zip,
@@ -397,8 +438,8 @@ const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><
 mod tests {
     use super::*;
     use crate::core::types::{
-        FamilyNode, GenusNode, OrderNode, PhotoItem, ScanResponse, ScanStats, SpeciesNode,
-        TaxonTree,
+        FamilyNode, GenusNode, MediaItem, MediaType, OrderNode, ScanResponse, ScanStats,
+        SpeciesNode, TaxonTree,
     };
     use calamine::{open_workbook_auto, DataType, Reader};
 
@@ -430,17 +471,17 @@ mod tests {
         );
         assert_eq!(summary.get_value((2, 1)), Some(&DataType::Float(3.0)));
         assert_eq!(
-            summary.get_value((6, 1)),
+            summary.get_value((10, 1)),
             Some(&DataType::String("2026-08-02 12:34:56".into()))
         );
         assert_eq!(
-            summary.get_value((7, 1)),
+            summary.get_value((11, 1)),
             Some(&DataType::String(
                 "/应用资源/Multiling IOC 15.1_d.xlsx".into()
             ))
         );
         assert_eq!(
-            summary.get_value((10, 0)),
+            summary.get_value((14, 0)),
             Some(&DataType::String("/照片/<精选>".into()))
         );
 
@@ -457,7 +498,21 @@ mod tests {
             manifest.get_value((1, 5)),
             Some(&DataType::String("Pycnonotus sinensis".into()))
         );
-        assert_eq!(manifest.get_value((1, 6)), Some(&DataType::Float(2.0)));
+        assert_eq!(
+            manifest.get_value((0, 6)),
+            Some(&DataType::String("图片数".into()))
+        );
+        assert_eq!(
+            manifest.get_value((0, 7)),
+            Some(&DataType::String("视频数".into()))
+        );
+        assert_eq!(
+            manifest.get_value((0, 8)),
+            Some(&DataType::String("媒体总数".into()))
+        );
+        assert_eq!(manifest.get_value((1, 6)), Some(&DataType::Float(1.0)));
+        assert_eq!(manifest.get_value((1, 7)), Some(&DataType::Float(1.0)));
+        assert_eq!(manifest.get_value((1, 8)), Some(&DataType::Float(2.0)));
         assert_eq!(manifest.height(), 2);
 
         std::fs::remove_dir_all(base).unwrap();
@@ -477,9 +532,13 @@ mod tests {
         let destination = base.join("空物种清单.xlsx");
         let mut request = sample_request(destination.to_string_lossy().to_string());
         request.scan.tree.orders.clear();
-        request.scan.stats.matched_files = 0;
+        request.scan.stats.matched_media = 0;
+        request.scan.stats.matched_images = 0;
+        request.scan.stats.matched_videos = 0;
         request.scan.stats.matched_species = 0;
-        request.scan.stats.unmatched_files = request.scan.stats.total_files;
+        request.scan.stats.unmatched_media = request.scan.stats.total_media;
+        request.scan.stats.unmatched_images = request.scan.stats.total_images;
+        request.scan.stats.unmatched_videos = request.scan.stats.total_videos;
 
         let response = export_manifest(&request).unwrap();
 
@@ -531,25 +590,27 @@ mod tests {
                 tree: TaxonTree {
                     orders: vec![OrderNode {
                         name: "PASSERIFORMES".into(),
-                        count: 2,
+                        media_count: 2,
                         families: vec![FamilyNode {
                             name: "Pycnonotidae".into(),
-                            count: 2,
+                            media_count: 2,
                             genera: vec![GenusNode {
                                 name: "Pycnonotus".into(),
-                                count: 2,
+                                media_count: 2,
                                 species: vec![SpeciesNode {
                                     latin: "Pycnonotus sinensis".into(),
                                     chinese: "白头鹎".into(),
-                                    count: 2,
-                                    photos: vec![
-                                        PhotoItem {
+                                    media_count: 2,
+                                    media_items: vec![
+                                        MediaItem {
                                             path: "/照片/<精选>/白头鹎-1.jpg".into(),
                                             file_name: "白头鹎-1.jpg".into(),
+                                            media_type: MediaType::Image,
                                         },
-                                        PhotoItem {
-                                            path: "/照片/<精选>/白头鹎 & 竹.jpg".into(),
-                                            file_name: "白头鹎 & 竹.jpg".into(),
+                                        MediaItem {
+                                            path: "/照片/<精选>/白头鹎 & 竹.mp4".into(),
+                                            file_name: "白头鹎 & 竹.mp4".into(),
+                                            media_type: MediaType::Video,
                                         },
                                     ],
                                 }],
@@ -558,10 +619,16 @@ mod tests {
                     }],
                 },
                 stats: ScanStats {
-                    total_files: 3,
-                    matched_files: 2,
+                    total_media: 3,
+                    total_images: 2,
+                    total_videos: 1,
+                    matched_media: 2,
+                    matched_images: 1,
+                    matched_videos: 1,
                     matched_species: 1,
-                    unmatched_files: 1,
+                    unmatched_media: 1,
+                    unmatched_images: 1,
+                    unmatched_videos: 0,
                 },
                 total_species: 11_250,
                 roots: vec!["/照片/<精选>".into()],

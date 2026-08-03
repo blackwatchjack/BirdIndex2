@@ -6,6 +6,8 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const CACHE_VERSION: u32 = 2;
+
 pub struct CacheIndex {
     pub entries: HashMap<String, CacheEntry>,
 }
@@ -33,7 +35,7 @@ pub fn load_cache<P: AsRef<Path>>(path: P, ioc_fingerprint: &str) -> Result<Cach
     let cache: CacheFile = serde_json::from_str(&data)
         .with_context(|| format!("Failed to parse cache file: {}", path.display()))?;
 
-    if cache.ioc_fingerprint != ioc_fingerprint {
+    if cache.version != CACHE_VERSION || cache.ioc_fingerprint != ioc_fingerprint {
         return Ok(CacheIndex::empty());
     }
 
@@ -57,7 +59,7 @@ pub fn save_cache<P: AsRef<Path>>(
     }
 
     let cache = CacheFile {
-        version: 1,
+        version: CACHE_VERSION,
         ioc_fingerprint: ioc_fingerprint.to_string(),
         entries,
     };
@@ -95,4 +97,64 @@ pub fn file_mtime(path: &Path) -> i64 {
 
 pub fn path_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::MediaType;
+
+    fn temporary_cache_path(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "birdindex2-{name}-{}-{}.json",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn ignores_previous_cache_versions() {
+        let path = temporary_cache_path("legacy-cache");
+        fs::write(
+            &path,
+            r#"{
+                "version": 1,
+                "ioc_fingerprint": "ioc-v1",
+                "entries": [{
+                    "path": "/media/白头鹎.jpg",
+                    "mtime": 1,
+                    "species_latin": "Pycnonotus sinensis"
+                }]
+            }"#,
+        )
+        .unwrap();
+
+        let cache = load_cache(&path, "ioc-v1").unwrap();
+
+        assert!(cache.entries.is_empty());
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn round_trips_video_media_type_in_current_cache() {
+        let path = temporary_cache_path("video-cache");
+        let entry = CacheEntry {
+            path: "/media/白头鹎.mp4".into(),
+            mtime: 42,
+            species_latin: Some("Pycnonotus sinensis".into()),
+            media_type: MediaType::Video,
+        };
+
+        save_cache(&path, "ioc-v2", vec![entry]).unwrap();
+        let cache = load_cache(&path, "ioc-v2").unwrap();
+
+        assert_eq!(
+            cache.get("/media/白头鹎.mp4").map(|entry| entry.media_type),
+            Some(MediaType::Video)
+        );
+        fs::remove_file(path).unwrap();
+    }
 }

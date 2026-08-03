@@ -4,33 +4,36 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 
 const IOC_FILE_NAME = "Multiling IOC 15.1_d.xlsx";
 
-interface PhotoItem {
+type MediaType = "image" | "video";
+
+interface MediaItem {
   path: string;
   file_name: string;
+  media_type: MediaType;
 }
 
 interface SpeciesNode {
   latin: string;
   chinese: string;
-  count: number;
-  photos: PhotoItem[];
+  media_count: number;
+  media_items: MediaItem[];
 }
 
 interface GenusNode {
   name: string;
-  count: number;
+  media_count: number;
   species: SpeciesNode[];
 }
 
 interface FamilyNode {
   name: string;
-  count: number;
+  media_count: number;
   genera: GenusNode[];
 }
 
 interface OrderNode {
   name: string;
-  count: number;
+  media_count: number;
   families: FamilyNode[];
 }
 
@@ -39,10 +42,16 @@ interface TaxonTree {
 }
 
 interface ScanStats {
-  total_files: number;
-  matched_files: number;
+  total_media: number;
+  total_images: number;
+  total_videos: number;
+  matched_media: number;
+  matched_images: number;
+  matched_videos: number;
   matched_species: number;
-  unmatched_files: number;
+  unmatched_media: number;
+  unmatched_images: number;
+  unmatched_videos: number;
 }
 
 interface ScanResponse {
@@ -91,7 +100,7 @@ export default function App() {
   const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
   const [treeQuery, setTreeQuery] = useState("");
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesNode | null>(null);
-  const [selectedPhoto, setSelectedPhoto] = useState<PhotoItem | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [thumbnailErrorMap, setThumbnailErrorMap] = useState<
     Record<string, boolean>
   >({});
@@ -113,6 +122,7 @@ export default function App() {
 
   useEffect(() => {
     setThumbnailErrorMap({});
+    setSelectedMedia(null);
   }, [selectedSpecies]);
 
   const rootsLabel = useMemo(() => {
@@ -124,7 +134,7 @@ export default function App() {
     setScanResult(null);
     setTreeQuery("");
     setSelectedSpecies(null);
-    setSelectedPhoto(null);
+    setSelectedMedia(null);
     setExportMessage(null);
     setError(null);
   };
@@ -210,7 +220,7 @@ export default function App() {
     setScanResult(null);
     setTreeQuery("");
     setSelectedSpecies(null);
-    setSelectedPhoto(null);
+    setSelectedMedia(null);
     try {
       const response = await invoke<ScanResponse>("scan", {
         request: {
@@ -266,9 +276,9 @@ export default function App() {
   };
 
   const handleReveal = async () => {
-    if (!selectedPhoto) return;
+    if (!selectedMedia) return;
     try {
-      await invoke("reveal", { path: selectedPhoto.path });
+      await invoke("reveal", { path: selectedMedia.path });
     } catch (err) {
       setError(String(err));
     }
@@ -294,7 +304,7 @@ export default function App() {
       <header className="toolbar">
         <div>
           <h1>BirdIndex2</h1>
-          <p>Local-only IOC indexing for bird photos.</p>
+          <p>Local-only IOC indexing for bird photos and videos.</p>
         </div>
         <div className="toolbar-actions">
           <button
@@ -369,10 +379,14 @@ export default function App() {
         <div className="scan-summary">
           {scanResult ? (
             <div className="stats">
-              <span>扫描文件：{scanResult.stats.total_files}</span>
-              <span>命中：{scanResult.stats.matched_files}</span>
+              <span>扫描媒体：{scanResult.stats.total_media}</span>
+              <span>图片：{scanResult.stats.total_images}</span>
+              <span>视频：{scanResult.stats.total_videos}</span>
+              <span>命中媒体：{scanResult.stats.matched_media}</span>
+              <span>命中图片：{scanResult.stats.matched_images}</span>
+              <span>命中视频：{scanResult.stats.matched_videos}</span>
               <span>命中物种：{scanResult.stats.matched_species}</span>
-              <span>未命中：{scanResult.stats.unmatched_files}</span>
+              <span>未命中媒体：{scanResult.stats.unmatched_media}</span>
               <span>IOC 物种数：{scanResult.total_species}</span>
             </div>
           ) : (
@@ -421,36 +435,52 @@ export default function App() {
         </section>
 
         <section className="panel gallery">
-          <h2>缩略图</h2>
+          <h2>媒体</h2>
           {selectedSpecies ? (
             <div className="grid">
-              {selectedSpecies.photos.map((photo) => (
+              {selectedSpecies.media_items.map((media) => (
                 <button
-                  key={photo.path}
+                  key={media.path}
                   className={
-                    selectedPhoto?.path === photo.path
-                      ? "photo active"
-                      : "photo"
+                    selectedMedia?.path === media.path
+                      ? "media-card active"
+                      : "media-card"
                   }
-                  onClick={() => setSelectedPhoto(photo)}
-                  onDoubleClick={() => handleOpen(photo.path)}
+                  onClick={() => setSelectedMedia(media)}
+                  onDoubleClick={() => handleOpen(media.path)}
+                  aria-label={`选择${media.media_type === "video" ? "视频" : "图片"}：${media.file_name}`}
                 >
-                  {thumbnailErrorMap[photo.path] ? (
+                  {media.media_type === "video" ? (
                     <div
-                      className="photo-fallback"
+                      className="media-preview video-placeholder"
                       role="img"
-                      aria-label={`无法预览：${photo.file_name}`}
+                      aria-label={`视频：${media.file_name}`}
+                    >
+                      <span className="video-icon" aria-hidden="true">
+                        ▶
+                      </span>
+                      <span className="video-label">视频</span>
+                    </div>
+                  ) : thumbnailErrorMap[media.path] ? (
+                    <div
+                      className="media-preview media-fallback"
+                      role="img"
+                      aria-label={`无法预览：${media.file_name}`}
                     >
                       无法预览
                     </div>
                   ) : (
                     <img
-                      src={toThumbnailSrc(photo.path)}
-                      alt={photo.file_name}
-                      onError={() => handleThumbnailError(photo.path)}
+                      className="media-preview"
+                      src={toThumbnailSrc(media.path)}
+                      alt={media.file_name}
+                      onError={() => handleThumbnailError(media.path)}
                     />
                   )}
-                  <span>{photo.file_name}</span>
+                  <span className="media-name">{media.file_name}</span>
+                  <span className={`media-type-badge ${media.media_type}`}>
+                    {media.media_type === "video" ? "视频" : "图片"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -468,14 +498,27 @@ export default function App() {
                   ? `${selectedSpecies.chinese} ${selectedSpecies.latin}`
                   : selectedSpecies.latin}
               </div>
-              <div className="meta-row">数量：{selectedSpecies.count}</div>
               <div className="meta-row">
-                {selectedPhoto ? selectedPhoto.path : "选择一张照片查看路径"}
+                媒体总数：{selectedSpecies.media_count}
+              </div>
+              <div className="meta-row">
+                文件名：{selectedMedia ? selectedMedia.file_name : "—"}
+              </div>
+              <div className="meta-row">
+                媒体类型：
+                {selectedMedia
+                  ? selectedMedia.media_type === "video"
+                    ? "视频"
+                    : "图片"
+                  : "—"}
+              </div>
+              <div className="meta-row">
+                路径：{selectedMedia ? selectedMedia.path : "请选择一个媒体文件"}
               </div>
               <button
                 className="ghost"
                 onClick={handleReveal}
-                disabled={!selectedPhoto}
+                disabled={!selectedMedia}
               >
                 定位到文件夹
               </button>
@@ -541,13 +584,19 @@ function TreeView({
     <div className="tree-root">
       {filteredOrders.map((order) => (
         <details key={order.name} open>
-          <summary>{order.name}</summary>
+          <summary>
+            {order.name} ({order.media_count})
+          </summary>
           {order.families.map((family) => (
             <details key={family.name} className="level" open={hasQuery || undefined}>
-              <summary>{family.name}</summary>
+              <summary>
+                {family.name} ({family.media_count})
+              </summary>
               {family.genera.map((genus) => (
                 <details key={genus.name} className="level" open={hasQuery || undefined}>
-                  <summary>{genus.name}</summary>
+                  <summary>
+                    {genus.name} ({genus.media_count})
+                  </summary>
                   <div className="species-list">
                     {genus.species.map((species) => (
                       <button
@@ -558,7 +607,7 @@ function TreeView({
                         {species.chinese
                           ? `${species.chinese} ${species.latin}`
                           : species.latin}{" "}
-                        ({species.count})
+                        ({species.media_count})
                       </button>
                     ))}
                   </div>
