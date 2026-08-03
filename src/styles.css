@@ -138,6 +138,10 @@ body {
   resize: vertical;
 }
 
+.settings input[readonly] {
+  cursor: default;
+}
+
 .settings textarea {
   min-height: 70px;
 }
@@ -208,12 +212,42 @@ body {
   color: var(--muted);
 }
 
+.scan-summary {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.scan-summary .stats {
+  align-self: stretch;
+}
+
+.export-button {
+  white-space: nowrap;
+}
+
+.feedback:empty {
+  display: none;
+}
+
 .error {
   padding: 8px 12px;
   border-radius: 10px;
   background: rgba(210, 60, 60, 0.12);
   color: #a12f2f;
   font-size: 13px;
+}
+
+.success {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(47, 107, 75, 0.12);
+  color: var(--accent-strong);
+  font-size: 13px;
+  word-break: break-all;
 }
 
 .main-grid {
@@ -388,9 +422,21 @@ body {
   font-size: 12px;
 }
 
+.ghost:hover:not(:disabled) {
+  background: rgba(47, 107, 75, 0.08);
+}
+
 .ghost:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.ghost:focus-visible,
+.toolbar-actions button:focus-visible,
+.settings input:focus-visible,
+.tree-search input:focus-visible {
+  outline: 3px solid rgba(47, 107, 75, 0.28);
+  outline-offset: 2px;
 }
 
 .empty {

@@ -1,6 +1,5 @@
 use crate::core::types::{
-    FamilyNode, GenusNode, IocEntry, MatchedPhoto, OrderNode, PhotoItem, SpeciesNode,
-    TaxonTree,
+    FamilyNode, GenusNode, IocEntry, MatchedPhoto, OrderNode, PhotoItem, SpeciesNode, TaxonTree,
 };
 use std::collections::HashMap;
 
@@ -18,10 +17,7 @@ pub fn build_tree(entries: &[IocEntry], matches: &[MatchedPhoto]) -> TaxonTree {
             .families
             .entry(entry.family.clone())
             .or_insert_with(FamilyAgg::default);
-        let genus_node = family
-            .genera
-            .entry(genus)
-            .or_insert_with(GenusAgg::default);
+        let genus_node = family.genera.entry(genus).or_insert_with(GenusAgg::default);
         let species = genus_node
             .species
             .entry(entry.latin.clone())
@@ -43,7 +39,9 @@ pub fn build_tree(entries: &[IocEntry], matches: &[MatchedPhoto]) -> TaxonTree {
         .collect();
     order_nodes.sort_by(|a, b| a.name.cmp(&b.name));
 
-    TaxonTree { orders: order_nodes }
+    TaxonTree {
+        orders: order_nodes,
+    }
 }
 
 fn genus_name(latin: &str) -> String {
@@ -90,7 +88,11 @@ impl FamilyAgg {
             .collect();
         genera.sort_by(|a, b| a.name.cmp(&b.name));
         let count = genera.iter().map(|g| g.count).sum();
-        FamilyNode { name, count, genera }
+        FamilyNode {
+            name,
+            count,
+            genera,
+        }
     }
 }
 

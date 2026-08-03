@@ -2,7 +2,10 @@
 
 mod core;
 
-use core::{scan_and_build, types::ScanRequest};
+use core::{
+    scan_and_build,
+    types::{ExportRequest, ExportResponse, ScanRequest},
+};
 use std::path::PathBuf;
 use tauri::path::BaseDirectory;
 use tauri::Manager;
@@ -76,6 +79,15 @@ fn open_file(path: String) -> Result<(), String> {
     core::locator::open_file(path).map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+async fn export_manifest(request: ExportRequest) -> Result<ExportResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        core::exporter::export_manifest(&request).map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| format!("导出任务执行失败：{err}"))?
+}
+
 fn main() {
     let app = tauri::Builder::default()
         .setup(|app| {
@@ -83,7 +95,12 @@ fn main() {
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan, reveal, open_file])
+        .invoke_handler(tauri::generate_handler![
+            scan,
+            reveal,
+            open_file,
+            export_manifest
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 

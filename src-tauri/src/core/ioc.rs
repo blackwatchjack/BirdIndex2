@@ -49,8 +49,8 @@ impl IocDatabase {
             let order = cell_string(row.get(order_col).unwrap_or(&DataType::Empty));
             let family = cell_string(row.get(family_col).unwrap_or(&DataType::Empty));
             let latin = cell_string(row.get(latin_col).unwrap_or(&DataType::Empty));
-            let chinese = cell_string(row.get(chinese_col).unwrap_or(&DataType::Empty))
-                .unwrap_or_default();
+            let chinese =
+                cell_string(row.get(chinese_col).unwrap_or(&DataType::Empty)).unwrap_or_default();
 
             let (order, family, latin) = match (order, family, latin) {
                 (Some(order), Some(family), Some(latin)) => (order, family, latin),
