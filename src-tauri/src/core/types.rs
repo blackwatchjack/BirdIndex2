@@ -8,38 +8,47 @@ pub struct IocEntry {
     pub chinese: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaType {
+    #[default]
+    Image,
+    Video,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PhotoItem {
+pub struct MediaItem {
     pub path: String,
     pub file_name: String,
+    pub media_type: MediaType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpeciesNode {
     pub latin: String,
     pub chinese: String,
-    pub count: usize,
-    pub photos: Vec<PhotoItem>,
+    pub media_count: usize,
+    pub media_items: Vec<MediaItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenusNode {
     pub name: String,
-    pub count: usize,
+    pub media_count: usize,
     pub species: Vec<SpeciesNode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FamilyNode {
     pub name: String,
-    pub count: usize,
+    pub media_count: usize,
     pub genera: Vec<GenusNode>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderNode {
     pub name: String,
-    pub count: usize,
+    pub media_count: usize,
     pub families: Vec<FamilyNode>,
 }
 
@@ -50,10 +59,16 @@ pub struct TaxonTree {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanStats {
-    pub total_files: usize,
-    pub matched_files: usize,
+    pub total_media: usize,
+    pub total_images: usize,
+    pub total_videos: usize,
+    pub matched_media: usize,
+    pub matched_images: usize,
+    pub matched_videos: usize,
     pub matched_species: usize,
-    pub unmatched_files: usize,
+    pub unmatched_media: usize,
+    pub unmatched_images: usize,
+    pub unmatched_videos: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,9 +99,10 @@ pub struct ExportResponse {
 }
 
 #[derive(Debug, Clone)]
-pub struct MatchedPhoto {
+pub struct MatchedMedia {
     pub path: String,
     pub file_name: String,
+    pub media_type: MediaType,
     pub species_idx: usize,
 }
 
@@ -95,6 +111,8 @@ pub struct CacheEntry {
     pub path: String,
     pub mtime: i64,
     pub species_latin: Option<String>,
+    #[serde(default)]
+    pub media_type: MediaType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,5 +121,3 @@ pub struct CacheFile {
     pub ioc_fingerprint: String,
     pub entries: Vec<CacheEntry>,
 }
-
-impl CacheFile {}

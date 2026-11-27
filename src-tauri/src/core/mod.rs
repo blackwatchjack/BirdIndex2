@@ -3,6 +3,7 @@ pub mod exporter;
 pub mod ioc;
 pub mod locator;
 pub mod matcher;
+pub mod photo_metadata;
 pub mod scanner;
 pub mod tree;
 pub mod types;
