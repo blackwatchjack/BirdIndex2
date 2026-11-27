@@ -80,6 +80,14 @@ fn open_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn photo_capture_time(path: PathBuf) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || core::photo_metadata::capture_time(&path))
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 async fn export_manifest(request: ExportRequest) -> Result<ExportResponse, String> {
     tauri::async_runtime::spawn_blocking(move || {
         core::exporter::export_manifest(&request).map_err(|err| err.to_string())
@@ -99,6 +107,7 @@ fn main() {
             scan,
             reveal,
             open_file,
+            photo_capture_time,
             export_manifest
         ])
         .build(tauri::generate_context!())

@@ -512,6 +512,9 @@ export default function App() {
                     : "图片"
                   : "—"}
               </div>
+              {selectedMedia?.media_type === "image" && (
+                <PhotoCaptureTime key={selectedMedia.path} path={selectedMedia.path} />
+              )}
               <div className="meta-row">
                 路径：{selectedMedia ? selectedMedia.path : "请选择一个媒体文件"}
               </div>
@@ -530,6 +533,27 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+function PhotoCaptureTime({ path }: { path: string }) {
+  const [value, setValue] = useState("读取中…");
+
+  useEffect(() => {
+    let active = true;
+    invoke<string | null>("photo_capture_time", { path }).then(
+      (time) => {
+        if (active) setValue(time ?? "未记录");
+      },
+      () => {
+        if (active) setValue("无法读取");
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [path]);
+
+  return <div className="meta-row" aria-live="polite">拍摄时间：{value}</div>;
 }
 
 function TreeView({
